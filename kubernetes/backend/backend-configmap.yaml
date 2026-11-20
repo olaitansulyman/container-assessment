@@ -5,3 +5,4 @@ metadata:
   namespace: muchtodo
 data:
   APP_ENV: production
+  MONGO_DATABASE: muchtodo
