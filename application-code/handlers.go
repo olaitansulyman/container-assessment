@@ -61,6 +61,14 @@ func (h *APIHandler) createTodo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "title_is_required")
 		return
 	}
+	if len(input.Title) > 200 || len(input.Description) > 2000 {
+		writeError(w, http.StatusBadRequest, "title_or_description_too_long")
+		return
+	}
+	if len(input.Title) > 200 || len(input.Description) > 2000 {
+		writeError(w, http.StatusBadRequest, "title_or_description_too_long")
+		return
+	}
 	now := time.Now().UTC()
 	todo := Todo{Title: input.Title, Description: strings.TrimSpace(input.Description), Completed: input.Completed, CreatedAt: now, UpdatedAt: now}
 
