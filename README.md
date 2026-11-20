@@ -2,7 +2,7 @@
 
 A hands-on DevOps portfolio project for packaging a small Go HTTP service, running it with MongoDB through Docker Compose, and deploying it to a local Kubernetes cluster using Kind.
 
-> **Scope and accuracy:** The current Go application exposes a `/health` endpoint. MongoDB is provisioned and connection settings are passed to the backend, but the current application source does not yet implement database CRUD operations. This is a learning/portfolio lab, not a live production service.
+The Go API connects to MongoDB and provides CRUD endpoints for todo items. This is a learning/portfolio lab, not a live production service.
 
 ## Architecture
 
@@ -24,7 +24,7 @@ flowchart LR
 
 ## Technology
 
-- Go HTTP service with `/health`
+- Go HTTP service with MongoDB-backed todo CRUD endpoints and database readiness checks
 - Multi-stage Docker build with a minimal distroless, non-root runtime
 - Docker Compose for local multi-container development
 - MongoDB 6 with persistent storage
@@ -75,6 +75,7 @@ Verify the API:
 
 ```bash
 curl --fail http://localhost:8080/health
+curl --fail http://localhost:8080/ready
 docker compose ps
 docker compose logs backend
 ```
@@ -124,6 +125,7 @@ Verify:
 kubectl get pods,services,pvc -n muchtodo
 kubectl rollout status deployment/backend -n muchtodo
 curl --fail http://localhost:30080/health
+curl --fail http://localhost:30080/ready
 ```
 
 Inspect logs and events:
@@ -138,6 +140,30 @@ Cleanup (the script asks for confirmation):
 
 ```bash
 ./scripts/k8s-cleanup.sh
+```
+
+## API reference
+
+All endpoints return JSON except successful `DELETE`, which returns HTTP 204.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Process liveness; does not require MongoDB |
+| GET | `/ready` | Checks MongoDB connectivity |
+| GET | `/todos` | List todo items |
+| POST | `/todos` | Create a todo: `{\"title\":\"Learn Go\",\"description\":\"Build an API\"}` |
+| GET | `/todos/{id}` | Retrieve a todo by MongoDB ObjectID |
+| PUT | `/todos/{id}` | Replace editable todo fields |
+| DELETE | `/todos/{id}` | Delete a todo |
+
+Titles are required and limited to 200 characters; descriptions are limited to 2,000 characters. Unknown JSON fields and malformed IDs are rejected.
+
+Example create request:
+
+```bash
+curl -X POST http://localhost:8080/todos \\
+  -H 'Content-Type: application/json' \\
+  -d '{"title":"Learn Go","description":"Build a MongoDB-backed API"}'
 ```
 
 ## 3. Run Go tests locally
@@ -163,7 +189,7 @@ For real shared/production environments, use a managed secret store, Kubernetes 
 
 ## Current limitations and next improvements
 
-- The Go API currently implements only `/health`; it does not yet read/write MongoDB data.
+- MongoDB currently uses the root account for this isolated local learning environment. Use a dedicated least-privilege application user and managed secrets before any shared or production deployment.
 - MongoDB runs as a single pod for this local lab; this is not a highly available database topology.
 - The optional Ingress manifest requires an Ingress controller and local DNS/hosts configuration; the default Kind path uses NodePort.
 - This project does not yet include Prometheus/Grafana monitoring or Docker Swarm/Traefik. Those will be separate portfolio labs so the technologies are demonstrated accurately.
