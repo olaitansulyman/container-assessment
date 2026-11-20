@@ -18,6 +18,7 @@ func main() {
 	port := envOrDefault("PORT", "8080")
 	databaseName := envOrDefault("MONGO_DATABASE", "muchtodo")
 	mongoURI := os.Getenv("MONGO_URI")
+
 	if mongoURI == "" {
 		log.Fatal("MONGO_URI must be set")
 	}
@@ -25,13 +26,20 @@ func main() {
 	startupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(startupCtx, options.Client().ApplyURI(mongoURI).SetServerSelectionTimeout(5*time.Second))
+	client, err := mongo.Connect(
+		startupCtx,
+		options.Client().
+			ApplyURI(mongoURI).
+			SetServerSelectionTimeout(5*time.Second),
+	)
 	if err != nil {
 		log.Fatalf("connect to MongoDB: %v", err)
 	}
+
 	defer func() {
 		ctx, stop := context.WithTimeout(context.Background(), 10*time.Second)
 		defer stop()
+
 		if err := client.Disconnect(ctx); err != nil {
 			log.Printf("disconnect MongoDB: %v", err)
 		}
@@ -41,7 +49,9 @@ func main() {
 		log.Fatalf("MongoDB is not reachable: %v", err)
 	}
 
-	repository := NewMongoTodoRepository(client.Database(databaseName).Collection("todos"))
+	repository := NewMongoTodoRepository(
+		client.Database(databaseName).Collection("todos"),
+	)
 	handler := NewAPIHandler(repository)
 
 	mux := http.NewServeMux()
@@ -63,6 +73,7 @@ func main() {
 	}
 
 	serverErrors := make(chan error, 1)
+
 	go func() {
 		log.Printf("MuchTodo API listening on :%s", port)
 		serverErrors <- server.ListenAndServe()
@@ -70,14 +81,18 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
 	select {
 	case err := <-serverErrors:
 		if !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("HTTP server: %v", err)
 		}
 	case <-stop:
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, shutdownCancel := context.WithTimeout(
+			context.Background(), 10*time.Second,
+		)
 		defer shutdownCancel()
+
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Printf("graceful shutdown failed: %v", err)
 		}
@@ -95,7 +110,10 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(started).Round(time.Millisecond))
+		log.Printf("%s %s %s",
+			r.Method,
+			r.URL.Path,
+			time.Since(started).Round(time.Millisecond),
+		)
 	})
 }
-
