@@ -151,7 +151,7 @@ All endpoints return JSON except successful `DELETE`, which returns HTTP 204.
 | GET | `/health` | Process liveness; does not require MongoDB |
 | GET | `/ready` | Checks MongoDB connectivity |
 | GET | `/todos` | List todo items |
-| POST | `/todos` | Create a todo: `{\"title\":\"Learn Go\",\"description\":\"Build an API\"}` |
+| POST | `/todos` | Create a todo: `{"title":"Learn Go","description":"Build an API"}` |
 | GET | `/todos/{id}` | Retrieve a todo by MongoDB ObjectID |
 | PUT | `/todos/{id}` | Replace editable todo fields |
 | DELETE | `/todos/{id}` | Delete a todo |
@@ -161,8 +161,8 @@ Titles are required and limited to 200 characters; descriptions are limited to 2
 Example create request:
 
 ```bash
-curl -X POST http://localhost:8080/todos \\
-  -H 'Content-Type: application/json' \\
+curl -X POST http://localhost:8080/todos \
+  -H 'Content-Type: application/json' \
   -d '{"title":"Learn Go","description":"Build a MongoDB-backed API"}'
 ```
 
