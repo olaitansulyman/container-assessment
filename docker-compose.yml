@@ -10,7 +10,9 @@ services:
     networks:
       - muchtodo-net
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        - CMD-SHELL
+        - mongosh --quiet --username "$$MONGO_INITDB_ROOT_USERNAME" --password "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand('ping').ok"
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,7 +30,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/muchtodo?authSource=admin
+      MONGO_URI: ${MONGO_URI:?Set MONGO_URI in .env}
       APP_ENV: development
     networks:
       - muchtodo-net
