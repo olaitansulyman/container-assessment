@@ -1,34 +1,48 @@
-version: "3.9"
-
 services:
   mongodb:
     image: mongo:6
-    container_name: mongodb
-    restart: always
+    restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}
     volumes:
       - mongo_data:/data/db
     networks:
       - muchtodo-net
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mongosh --quiet --username "$$MONGO_INITDB_ROOT_USERNAME" --password "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand('ping').ok"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   backend:
-    build: .
-    container_name: muchtodo-api
-    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: muchtodo-api:local
+    restart: unless-stopped
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
-      MONGO_URI: mongodb://admin:password@mongodb:27017/muchtodo
+      MONGO_URI: ${MONGO_URI:?Set MONGO_URI in .env}
       APP_ENV: development
     networks:
       - muchtodo-net
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 volumes:
   mongo_data:
 
 networks:
   muchtodo-net:
+    driver: bridge

@@ -1,8 +1,16 @@
 .git
+.github
 .gitignore
+.dockerignore
 Dockerfile
 docker-compose.yml
+.env
+.env.*
+!.env.example
+!.env.k8s.*.example
 node_modules
 vendor
-.env
 evidence
+*.kubeconfig
+*.log
+.DS_Store

@@ -1,0 +1,56 @@
+name: Container Assessment CI
+
+on:
+  pull_request:
+    paths:
+      - "application-code/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "kubernetes/**"
+      - "scripts/**"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "application-code/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "kubernetes/**"
+      - "scripts/**"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: application-code/go.mod
+          cache-dependency-path: application-code/go.sum
+
+      - name: Run Go tests
+        working-directory: application-code
+        run: go test ./...
+
+      - name: Validate Docker Compose configuration
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+          rm .env
+
+      - name: Build container image
+        run: docker build -t muchtodo-api:ci .
+
+      - name: Check shell script syntax
+        run: |
+          bash -n scripts/docker-build.sh
+          bash -n scripts/docker-run.sh
+          bash -n scripts/k8s-deploy.sh
+          bash -n scripts/k8s-cleanup.sh

@@ -1,230 +1,195 @@
-# MuchTodo Backend – Container & Kubernetes Deployment
+# MuchTodo API — Docker and Kubernetes Deployment Lab
 
-## 🎯 Project Overview
+A hands-on DevOps portfolio project for packaging a small Go HTTP service, running it with MongoDB through Docker Compose, and deploying it to a local Kubernetes cluster using Kind.
 
-This project demonstrates enterprise-grade containerization and orchestration of a Golang backend API with MongoDB persistence. The implementation showcases production-ready DevOps practices including multi-stage Docker builds, Kubernetes deployment, and comprehensive monitoring.
+> **Scope and accuracy:** The current Go application exposes a `/health` endpoint. MongoDB is provisioned and connection settings are passed to the backend, but the current application source does not yet implement database CRUD operations. This is a learning/portfolio lab, not a live production service.
 
-## 🏗️ Architecture
+## Architecture
 
-- **Backend**: Golang REST API with health endpoints
-- **Database**: MongoDB 6 with persistent storage
-- **Containerization**: Multi-stage Docker build with distroless runtime
-- **Orchestration**: Kubernetes with Kind for local development
-- **Networking**: NodePort service for external access
-- **Security**: Non-root containers, resource limits, health probes
-
-## 📋 Prerequisites
-
-Ensure the following tools are installed:
-
-- **Docker** (v20.10+)
-- **Docker Compose** (v2.0+)
-- **Kind** (v0.20+)
-- **kubectl** (v1.25+)
-
-## 🚀 Quick Start
-
-### Phase 1: Docker Development
-
-1. **Build the application image:**
-   ```bash
-   ./scripts/docker-build.sh
-   ```
-
-2. **Start the development environment:**
-   ```bash
-   ./scripts/docker-run.sh
-   ```
-
-3. **Verify the deployment:**
-   ```bash
-   curl http://localhost:8080/health
-   # Expected: {"status":"healthy","service":"muchtodo-api"}
-   ```
-
-4. **Check container status:**
-   ```bash
-   docker-compose ps
-   ```
-
-### Phase 2: Kubernetes Deployment
-
-1. **Deploy to Kind cluster:**
-   ```bash
-   ./scripts/k8s-deploy.sh
-   ```
-
-2. **Monitor deployment progress:**
-   ```bash
-   kubectl get pods -n muchtodo -w
-   ```
-
-3. **Verify services:**
-   ```bash
-   kubectl get svc -n muchtodo
-   ```
-
-4. **Test NodePort access:**
-   ```bash
-   curl http://localhost:30080/health
-   ```
-
-## 🔧 Project Structure
-
-```
-container-assessment/
-├── application-code/          # Golang source code
-│   ├── main.go               # REST API implementation
-│   ├── go.mod                # Go module definition
-│   └── go.sum                # Dependency checksums
-├── kubernetes/               # K8s manifests
-│   ├── namespace.yaml        # Namespace definition
-│   ├── mongodb/              # MongoDB resources
-│   │   ├── mongodb-secret.yaml
-│   │   ├── mongodb-configmap.yaml
-│   │   ├── mongodb-pvc.yaml
-│   │   ├── mongodb-deployment.yaml
-│   │   └── mongodb-service.yaml
-│   ├── backend/              # Backend resources
-│   │   ├── backend-secret.yaml
-│   │   ├── backend-configmap.yaml
-│   │   ├── backend-deployment.yaml
-│   │   └── backend-service.yaml
-│   └── ingress.yaml          # Ingress configuration
-├── scripts/                  # Automation scripts
-│   ├── docker-build.sh       # Build Docker image
-│   ├── docker-run.sh         # Start Docker Compose
-│   ├── k8s-deploy.sh         # Deploy to Kubernetes
-│   └── k8s-cleanup.sh        # Clean up resources
-├── evidence/                 # Documentation screenshots
-├── Dockerfile               # Multi-stage build definition
-├── docker-compose.yml       # Local development setup
-├── .dockerignore           # Docker build exclusions
-└── README.md               # This documentation
+```mermaid
+flowchart LR
+  Client[Local client] -->|HTTP :8080 / :30080| API[Go API]
+  API -. configuration .-> DB[(MongoDB)]
+  subgraph Compose[Docker Compose]
+    API
+    DB
+  end
+  subgraph Kind[Kind Kubernetes cluster]
+    SVC[NodePort Service :30080] --> Pods[Backend Deployment x2]
+    Pods -. MONGO_URI .-> MongoSvc[MongoDB Service]
+    MongoSvc --> MongoPod[MongoDB Pod]
+    MongoPod --> PVC[(Persistent Volume Claim)]
+  end
 ```
 
-## 🐳 Docker Implementation
+## Technology
 
-### Multi-Stage Build Benefits
-- **Security**: Distroless runtime image (55.5MB)
-- **Performance**: Optimized binary compilation
-- **Efficiency**: Minimal attack surface
-- **Compliance**: Non-root execution
+- Go HTTP service with `/health`
+- Multi-stage Docker build with a minimal distroless, non-root runtime
+- Docker Compose for local multi-container development
+- MongoDB 6 with persistent storage
+- Kubernetes Deployments, Services, ConfigMaps, Secrets, PVC, health probes and resource requests/limits
+- Kind for a local Kubernetes cluster
+- Bash scripts for repeatable build, deploy and cleanup
 
-### Container Features
-- CGO disabled for static binary
-- Health check endpoints
-- Resource-efficient runtime
-- Production-ready configuration
+## Repository layout
 
-## ☸️ Kubernetes Features
+```text
+.
+├── application-code/       # Go application source and module files
+├── kubernetes/             # Namespace, backend and MongoDB manifests
+├── scripts/                # Docker and Kind helper scripts
+├── Dockerfile              # Multi-stage Go image build
+├── docker-compose.yml      # Local development stack
+├── .env.example            # Compose variable template (no real secrets)
+├── .env.k8s.*.example      # Kubernetes secret input templates
+└── README.md
+```
 
-### High Availability
-- **Backend**: 2 replica deployment
-- **Database**: Persistent volume storage
-- **Networking**: ClusterIP and NodePort services
-- **Monitoring**: Liveness and readiness probes
+## Prerequisites
 
-### Resource Management
-- CPU requests: 100m, limits: 500m
-- Memory requests: 128Mi, limits: 256Mi
-- Storage: 1Gi persistent volume for MongoDB
+- Docker Engine with Docker Compose v2
+- Go 1.22+ (for local tests)
+- Kind
+- kubectl
+- Bash
 
-## 🔍 Monitoring & Health Checks
+## 1. Run with Docker Compose
 
-### Application Health
-- **Endpoint**: `/health`
-- **Response**: `{"status":"healthy","service":"muchtodo-api"}`
-- **Probes**: Kubernetes liveness and readiness checks
+Create a local environment file:
 
-### Service Discovery
-- **Docker**: Internal network communication
-- **Kubernetes**: DNS-based service resolution
-- **External**: NodePort 30080 for testing
-
-## 🧹 Cleanup
-
-### Docker Environment
 ```bash
-docker-compose down -v
-docker rmi muchtodo-api:latest
+cp .env.example .env
 ```
 
-### Kubernetes Environment
+Edit `.env` and replace all placeholder values. Use a strong password containing only URL-safe alphanumeric characters for this local example, or URL-encode special characters when constructing the MongoDB URI.
+
+Build and start:
+
+```bash
+./scripts/docker-build.sh
+./scripts/docker-run.sh
+```
+
+Verify the API:
+
+```bash
+curl --fail http://localhost:8080/health
+docker compose ps
+docker compose logs backend
+```
+
+Expected health response:
+
+```json
+{"status":"healthy","service":"muchtodo-api"}
+```
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+To also delete the local MongoDB volume and all stored lab data:
+
+```bash
+docker compose down --volumes
+```
+
+## 2. Deploy to Kubernetes with Kind
+
+Create local Kubernetes secret input files:
+
+```bash
+cp .env.k8s.mongodb.example .env.k8s.mongodb
+cp .env.k8s.backend.example .env.k8s.backend
+```
+
+Set the MongoDB root username/password in `.env.k8s.mongodb`. Set `MONGO_URI` in `.env.k8s.backend` to match those credentials and the in-cluster service name `mongodb`.
+
+These files are ignored by Git. Never commit populated secret files, Kubernetes Secret manifests containing real values, kubeconfig files, or screenshots with credentials.
+
+Build and deploy:
+
+```bash
+./scripts/k8s-deploy.sh
+```
+
+The script creates the Kind cluster if needed, builds and loads the local image, applies the namespace and configuration, creates Kubernetes Secrets from local env files, and waits for both Deployments to become ready.
+
+Verify:
+
+```bash
+kubectl get pods,services,pvc -n muchtodo
+kubectl rollout status deployment/backend -n muchtodo
+curl --fail http://localhost:30080/health
+```
+
+Inspect logs and events:
+
+```bash
+kubectl logs deployment/backend -n muchtodo
+kubectl describe pods -n muchtodo
+kubectl get events -n muchtodo --sort-by=.lastTimestamp
+```
+
+Cleanup (the script asks for confirmation):
+
 ```bash
 ./scripts/k8s-cleanup.sh
 ```
 
-## 📸 Evidence Documentation
+## 3. Run Go tests locally
 
-The `evidence/` folder contains comprehensive screenshots demonstrating:
-
-✅ **Docker Phase:**
-- Successful image build process
-- Container orchestration with docker-compose
-- API health check responses
-- Resource utilization metrics
-
-✅ **Kubernetes Phase:**
-- Kind cluster creation and configuration
-- Pod deployment and status verification
-- Service discovery and networking
-- NodePort accessibility testing
-
-## 🏆 Technical Achievements
-
-### DevOps Excellence
-- ✅ **Infrastructure as Code**: Complete Kubernetes manifests
-- ✅ **Automation**: Scripted deployment workflows
-- ✅ **Security**: Non-root containers, secrets management
-- ✅ **Scalability**: Horizontal pod autoscaling ready
-- ✅ **Monitoring**: Comprehensive health checking
-- ✅ **Documentation**: Professional technical documentation
-
-### Production Readiness
-- ✅ **Multi-stage builds**: Optimized container images
-- ✅ **Persistent storage**: Database state preservation
-- ✅ **Service mesh ready**: Kubernetes-native networking
-- ✅ **Cloud agnostic**: Portable across environments
-- ✅ **CI/CD ready**: Automated deployment pipelines
-
-## 🔗 API Endpoints
-
-| Endpoint | Method | Description | Response |
-|----------|--------|-------------|----------|
-| `/health` | GET | Health check | `{"status":"healthy","service":"muchtodo-api"}` |
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-**Docker build fails:**
 ```bash
-# Check Docker daemon
-docker info
-
-# Rebuild with verbose output
-docker build -t muchtodo-api . --progress=plain
+cd application-code
+go test ./...
 ```
 
-**Kubernetes pods not starting:**
-```bash
-# Check pod logs
-kubectl logs -n muchtodo deployment/backend
+## Security controls demonstrated
 
-# Describe pod for events
+- Multi-stage build separates compiler/toolchain from runtime.
+- Runtime image runs as a non-root user.
+- Backend container drops Linux capabilities, disallows privilege escalation and uses a read-only root filesystem.
+- MongoDB credentials are injected at deployment time from ignored local env files, not committed in Kubernetes manifests.
+- Kubernetes startup, readiness and liveness probes are configured.
+- CPU/memory requests and limits are defined.
+- Docker Compose publishes the API only on the local loopback interface.
+- MongoDB is not published to the host.
+- Cleanup is explicit and warns before deleting the Kind cluster.
+
+For real shared/production environments, use a managed secret store, Kubernetes encryption at rest, network policies, image scanning, pinned image digests, TLS, and an externally managed backup/restore strategy.
+
+## Current limitations and next improvements
+
+- The Go API currently implements only `/health`; it does not yet read/write MongoDB data.
+- MongoDB runs as a single pod for this local lab; this is not a highly available database topology.
+- The optional Ingress manifest requires an Ingress controller and local DNS/hosts configuration; the default Kind path uses NodePort.
+- This project does not yet include Prometheus/Grafana monitoring or Docker Swarm/Traefik. Those will be separate portfolio labs so the technologies are demonstrated accurately.
+
+## Troubleshooting
+
+**Backend image not found in Kind**
+
+```bash
+docker images | grep muchtodo-api
+kind load docker-image muchtodo-api:local --name muchtodo
+kubectl rollout restart deployment/backend -n muchtodo
+```
+
+**Backend pods are not ready**
+
+```bash
 kubectl describe pod -n muchtodo -l app=backend
+kubectl logs -n muchtodo deployment/backend
 ```
 
-**NodePort not accessible:**
+**MongoDB is not ready**
+
 ```bash
-# Verify Kind port mapping
-kubectl get svc -n muchtodo
-
-# Use port-forward as alternative
-kubectl port-forward -n muchtodo svc/backend 8080:8080
+kubectl describe pod -n muchtodo -l app=mongodb
+kubectl logs -n muchtodo deployment/mongodb
 ```
 
----
-
-**🎯 This implementation demonstrates enterprise-level containerization and orchestration capabilities suitable for production environments.**
+Check that the local MongoDB secret values match the backend `MONGO_URI`.
