@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -100,5 +99,3 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// Keep strconv linked here for explicit port validation in config-oriented tests.
-var _ = strconv.IntSize
