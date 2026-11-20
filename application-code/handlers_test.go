@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -110,4 +109,43 @@ func TestHealthDoesNotDependOnDatabase(t *testing.T) {
 	if !strings.Contains(res.Body.String(), "healthy") { t.Fatalf("unexpected response: %s", res.Body.String()) }
 }
 
-var _ = time.Second
+
+func TestUpdateAndDeleteTodo(t *testing.T) {
+	repo := newFakeRepository()
+	h := NewAPIHandler(repo)
+	created, err := repo.Create(context.Background(), Todo{Title: "Original"})
+	if err != nil { t.Fatal(err) }
+
+	updateReq := httptest.NewRequest(http.MethodPut, "/todos/"+created.ID.Hex(), strings.NewReader(`{"title":"Updated","completed":true}`))
+	updateReq.SetPathValue("id", created.ID.Hex())
+	updateRes := httptest.NewRecorder()
+	h.updateTodo(updateRes, updateReq)
+	if updateRes.Code != http.StatusOK { t.Fatalf("update status = %d, body=%s", updateRes.Code, updateRes.Body.String()) }
+	updated, err := repo.Get(context.Background(), created.ID)
+	if err != nil { t.Fatal(err) }
+	if updated.Title != "Updated" || !updated.Completed { t.Fatalf("unexpected updated todo: %+v", updated) }
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/todos/"+created.ID.Hex(), nil)
+	deleteReq.SetPathValue("id", created.ID.Hex())
+	deleteRes := httptest.NewRecorder()
+	h.deleteTodo(deleteRes, deleteReq)
+	if deleteRes.Code != http.StatusNoContent { t.Fatalf("delete status = %d, want %d", deleteRes.Code, http.StatusNoContent) }
+	if _, err := repo.Get(context.Background(), created.ID); !errors.Is(err, ErrTodoNotFound) { t.Fatalf("Get error = %v, want ErrTodoNotFound", err) }
+}
+
+func TestRejectsUnknownJSONFields(t *testing.T) {
+	h := NewAPIHandler(newFakeRepository())
+	req := httptest.NewRequest(http.MethodPost, "/todos", strings.NewReader(`{"title":"Valid","unexpected":true}`))
+	res := httptest.NewRecorder()
+	h.createTodo(res, req)
+	if res.Code != http.StatusBadRequest { t.Fatalf("status = %d, want %d", res.Code, http.StatusBadRequest) }
+}
+
+func TestRejectsOversizedTitle(t *testing.T) {
+	h := NewAPIHandler(newFakeRepository())
+	title := strings.Repeat("x", 201)
+	req := httptest.NewRequest(http.MethodPost, "/todos", strings.NewReader(`{"title":"`+title+`"}`))
+	res := httptest.NewRecorder()
+	h.createTodo(res, req)
+	if res.Code != http.StatusBadRequest { t.Fatalf("status = %d, want %d", res.Code, http.StatusBadRequest) }
+}
