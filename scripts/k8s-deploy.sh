@@ -24,6 +24,8 @@ nodes:
 EOF
 fi
 
+kubectl config use-context "kind-$CLUSTER_NAME"
+
 docker build -t "$IMAGE_NAME" .
 kind load docker-image "$IMAGE_NAME" --name "$CLUSTER_NAME"
 
