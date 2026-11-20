@@ -1,32 +1,28 @@
-# ---------- Build Stage ----------
-FROM golang:1.22-alpine AS builder
+# syntax=docker/dockerfile:1
+
+# BuildKit supplies TARGETOS/TARGETARCH for the requested build platform.
+FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
-# Install CA certs
-RUN apk add --no-cache ca-certificates git
+RUN apk add --no-cache ca-certificates
 
-# Copy go mod files first (caching)
 COPY application-code/go.mod application-code/go.sum ./
 RUN go mod download
 
-# Copy source code
-COPY application-code/ .
+COPY application-code/ ./
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -trimpath -ldflags="-s -w" -o /out/muchtodo-api .
 
-# Build binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -o muchtodo-api .
-
-# ---------- Runtime Stage ----------
-FROM gcr.io/distroless/base-debian12
+# Minimal non-root runtime. The application exposes /health on port 8080.
+FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
-
-# Create non-root user
-USER nonroot:nonroot
-
-COPY --from=builder /app/muchtodo-api /app/muchtodo-api
+COPY --from=builder --chown=nonroot:nonroot /out/muchtodo-api /app/muchtodo-api
 
 EXPOSE 8080
-
-CMD ["/app/muchtodo-api"]
+USER nonroot:nonroot
+ENTRYPOINT ["/app/muchtodo-api"]
